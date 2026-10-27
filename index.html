@@ -38,8 +38,6 @@ body{
 #stage{position:relative;box-shadow:0 0 0 4px var(--ink),8px 8px 0 4px var(--shade);touch-action:manipulation;cursor:pointer}
 #game{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
 .hint{font-family:var(--display);font-size:10px;letter-spacing:.06em;color:var(--muted);text-align:center;line-height:1.8}
-.portrait-tip{display:none}
-@media (orientation:portrait){.portrait-tip{display:block}}
 
 .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4%;text-align:center}
 #title h1{
@@ -105,17 +103,19 @@ body{
     <button id="mute" type="button" aria-label="Sound on or off">SOUND ON</button>
   </div>
 </div>
-<div class="hint">Tap or press Space to jump<span class="portrait-tip">Turn your phone sideways for a bigger view</span></div>
+<div class="hint">Tap or Space to jump</div>
 
 <div id="letter" hidden>
   <div class="paper">
     <div class="eyebrow">Happy 1st Anniversary</div>
-    <p>Wifey,</p>
-    <p>I wanted to get down on my knee and propose.</p>
+    <p>My wifey,</p>
+    <p>We never had a proposal. Our love story started with "I do", and it has grown every single day since.</p>
+    <p>So here I am, a year late and a world away, down on one knee, asking the question I always wanted to ask you.</p>
     <p>I will love you for now and forever.</p>
-    <p>You are my everything.</p>
-    <p>I can't imagine life without you.</p>
+    <p>You are my everything: my home, my peace, my favourite person.</p>
+    <p>I can't imagine a single day of my life without you.</p>
     <p>Thank you for being the most special person in my life.</p>
+    <p>I'm counting the days until I can hold your hand again.</p>
     <p class="sign">Love you, wifey &#9829;</p>
     <button class="pbtn alt replay" id="replay" type="button">Play again</button>
   </div>
@@ -124,7 +124,7 @@ body{
 <script>
 (() => {
 /* ---------- words on the hearts (edit freely) ---------- */
-const WORDS = ["kind","beautiful","my home","my peace","my best friend","patient","my sunshine","strong","cute","my forever","mine","my everything"];
+const WORDS = ["I love your smile","I love your laugh","I love your voice","I love your eyes","I love how you care","I love your hugs","I love your patience","I love your heart","I love how you say my name","I love us","I love you more every day"];
 
 const H = 180, GY = 150, HORIZON = 118, SC = 36; // SC = pixels of running per point
 let W = 320;
@@ -188,6 +188,22 @@ const sfx={
   yes:()=>[523,659,784,1047,784,1047].forEach((f,i)=>beep(f,0.2,'square',0.045,0,i*0.13)),
   no:()=>[392,330,262].forEach((f,i)=>beep(f,0.28,'triangle',0.08,0,i*0.22))
 };
+/* original background tune: slow romantic chiptune in F major, loops */
+const NOTE={G4:67,A4:69,Bb4:70,C5:72,D5:74,E5:76,F5:77,G5:79,A5:81,F2:41,A2:45,Bb2:46,C3:48,D3:50,F3:53};
+const MEL=[['A4',1],['C5',1],['F5',1.5],['E5',.5], ['E5',1],['C5',1],['A4',2], ['D5',1],['F5',1],['Bb4',1],['D5',1], ['C5',3],[null,1],
+  ['A4',1],['C5',1],['A5',1.5],['G5',.5], ['F5',1],['D5',1],['A4',2], ['Bb4',1],['D5',1],['G5',1],['F5',1], ['E5',1],['G5',1],['C5',2],
+  ['D5',2],['C5',1],['Bb4',1], ['G4',1],['A4',1],['Bb4',1],['E5',1], ['F5',3],[null,1]];
+const BASS=['F2','A2','Bb2','C3','F2','D3','Bb2','C3','Bb2','C3','F2'];
+const BEAT=60/76; let musicOn=false, mIx=0, mTime=0, barIx=0, bTime=0, mTimer=null;
+const freq=n=>440*Math.pow(2,(NOTE[n]-69)/12);
+function tone(f,start,dur,type,vol){ const o=actx.createOscillator(), g=actx.createGain(); o.type=type; o.frequency.value=f;
+  g.gain.setValueAtTime(0.0001,start); g.gain.linearRampToValueAtTime(vol,start+0.02); g.gain.setValueAtTime(vol,start+dur*0.7); g.gain.exponentialRampToValueAtTime(0.0001,start+dur*0.98);
+  o.connect(g).connect(actx.destination); o.start(start); o.stop(start+dur); }
+function startMusic(){ if(!actx||musicOn) return; musicOn=true; mTime=bTime=actx.currentTime+0.15; mIx=0; barIx=0;
+  mTimer=setInterval(()=>{ const ahead=actx.currentTime+0.4;
+    while(mTime<ahead){ const [n,b]=MEL[mIx]; if(n&&!muted) tone(freq(n),mTime,b*BEAT,'square',0.03); mTime+=b*BEAT; mIx=(mIx+1)%MEL.length; }
+    while(bTime<ahead){ const n=BASS[barIx]; if(!muted){ tone(freq(n),bTime,BEAT*1.9,'triangle',0.07); tone(freq(n)*1.5,bTime+BEAT*2,BEAT*1.9,'triangle',0.05); } bTime+=BEAT*4; barIx=(barIx+1)%BASS.length; }
+  },100); }
 $('mute').addEventListener('click',e=>{e.stopPropagation();muted=!muted;$('mute').textContent=muted?'SOUND OFF':'SOUND ON'});
 $('mute').addEventListener('pointerdown',e=>e.stopPropagation());
 
@@ -206,10 +222,12 @@ function setState(s){ state=s; stateT=0; }
 /* ---------- input ---------- */
 function press(){
   audio();
-  if(state==='title'){ $('title').hidden=true; setState('run'); caption='Dublin'; captionT=0; lastZone=0; return; }
+  if(state==='title'){ $('title').hidden=true; startMusic(); restartRun(); return; }
   if(state==='run'){ if(onGround){ vy=-265; onGround=false; sfx.jump(); } return; }
-  if(state==='oops' && stateT>0.35){ obs=obs.filter(o=>o.x-dist< -20 || o.x-dist > W+10); invuln=1.2; setState('run'); }
+  if(state==='oops' && stateT>0.5){ restartRun(); }
 }
+let hi=0;
+function restartRun(){ dist=0; py=GY; vy=0; onGround=true; obs=[]; hearts=[]; pops=[]; parts=[]; nextSpawn=260; collected=0; wordIx=0; invuln=0; speed=95; px=40; lastZone=0; caption='Dublin'; captionT=0; setState('run'); }
 stage.addEventListener('pointerdown',e=>{ if(e.target.closest('button')) return; e.preventDefault(); press(); });
 window.addEventListener('keydown',e=>{ if(e.code==='Space'||e.code==='ArrowUp'||e.code==='Enter'){ if(document.activeElement && document.activeElement.tagName==='BUTTON' && e.code!=='ArrowUp') return; e.preventDefault(); press(); } });
 $('yes').addEventListener('click',()=>{ $('ask').hidden=true; sfx.yes(); setState('yes');
@@ -250,7 +268,7 @@ function update(dt){
     }
     invuln=Math.max(0,invuln-dt);
     const pb={x:px+3,y:py-12,w:6,h:12};
-    for(const o of obs){ const b={x:o.x-dist+1,y:o.y+1,w:o.w-2,h:o.h-2}; if(invuln<=0 && hit(pb,b)){ sfx.oops(); setState('oops'); vy=0; break; } }
+    for(const o of obs){ const b={x:o.x-dist+1,y:o.y+1,w:o.w-2,h:o.h-2}; if(invuln<=0 && hit(pb,b)){ sfx.oops(); hi=Math.max(hi,score()); setState('oops'); vy=0; break; } }
     for(const h of hearts){ if(!h.got && hit({x:px+1,y:py-14,w:10,h:14},{x:h.x-dist,y:h.y,w:7,h:6})){ h.got=true; collected++; sfx.heart(); pops.push({s:WORDS[wordIx++%WORDS.length],x:px+6,y:py-26,t:0}); } }
     obs=obs.filter(o=>o.x-dist>-30); hearts=hearts.filter(h=>h.x-dist>-20 && !h.got);
     const z=zoneAt(dist+px); if(z!==lastZone){ lastZone=z; caption=['Dublin','Across the sea','Andaman'][z]; captionT=0; }
@@ -261,14 +279,14 @@ function update(dt){
   else kneelRang = state==='ask' || state==='no' ? kneelRang : false;
   if(state==='no' && stateT>1.3 && $('again').hidden) { $('again').hidden=false; }
   if(state==='yes' && stateT>1.8){ const v=20*dt; px+=v; herWX+=v; if((px>W+30 || stateT>14) && $('letter').hidden) showLetter(); }
-  for(const p of pops) { p.t+=dt; p.y-=10*dt; } pops=pops.filter(p=>p.t<1.4);
+  for(const p of pops) { p.t+=dt; p.y-=10*dt; } pops=pops.filter(p=>p.t<2.2);
   for(const p of parts){ if(p.d>0){p.d-=dt;continue;} p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=4*dt; p.life-=dt; } parts=parts.filter(p=>p.life>0);
   for(const r of rain){ r.y+=150*dt; r.x-=40*dt; if(r.y>GY){ r.y=-4; r.x=Math.random()*(W+60); } }
 }
 let kneelRang=false;
 function showLetter(){ const L=$('letter'); L.hidden=false; requestAnimationFrame(()=>L.classList.add('show'));
-  [...L.querySelectorAll('p')].forEach((p,i)=>setTimeout(()=>p.classList.add('on'),900+i*1100));
-  setTimeout(()=>L.querySelector('.replay').classList.add('on'),900+8*1100); }
+  const ps=[...L.querySelectorAll('p')]; ps.forEach((p,i)=>setTimeout(()=>p.classList.add('on'),900+i*1300));
+  setTimeout(()=>L.querySelector('.replay').classList.add('on'),900+ps.length*1300); }
 
 /* ---------- scenery ---------- */
 function cloud(x,y,c){ ctx.fillStyle=c; ctx.fillRect(x+4,y,12,3); ctx.fillRect(x,y+3,24,4); ctx.fillRect(x+8,y-2,8,2); ctx.fillRect(x+2,y+7,18,1); }
@@ -374,15 +392,16 @@ function render(){
   // particles
   for(const p of parts){ if(p.d>0) continue; ctx.globalAlpha=clamp(p.life,0,1); draw(HEART,p.x,p.y); } ctx.globalAlpha=1;
   // word pops
-  for(const p of pops){ ctx.globalAlpha=clamp(1.4-p.t,0,1); txt(p.s,clamp(p.x,4+p.s.length*4,W-4-p.s.length*4),p.y,'#d6305f','center'); } ctx.globalAlpha=1;
+  for(const p of pops){ ctx.globalAlpha=clamp(2.2-p.t,0,1); txt(p.s,clamp(p.x,4+p.s.length*4,W-4-p.s.length*4),p.y,'#d6305f','center'); } ctx.globalAlpha=1;
   // HUD
   if(state!=='title'){
     txt(String(score()).padStart(3,'0')+' / 100',W-6,7,'#5a2440','right');
+    if(hi>0) txt('HI '+String(hi).padStart(3,'0'),W-90,7,'#9a6077','right');
     draw(HEART,W-30,18); txt(String(collected),W-6,18,'#5a2440','right');
     if(captionT<3 && caption && (state==='run'||state==='arrive')){ ctx.globalAlpha=clamp(Math.min(captionT*2,3-captionT),0,1); txt(caption,W/2,22,'#5a2440','center'); ctx.globalAlpha=1; }
   }
   if(state==='oops'){ ctx.fillStyle='#fff7f1'; const bw=150,bh=34,bx=Math.round(W/2-bw/2),by=50; ctx.fillRect(bx-2,by-2,bw+4,bh+4); ctx.fillStyle='#5a2440'; ctx.fillRect(bx-4,by,2,bh); ctx.fillRect(bx+bw+2,by,2,bh); ctx.fillRect(bx,by-4,bw,2); ctx.fillRect(bx,by+bh+2,bw,2);
-    txt('Oops! Keep going',W/2,by+6,'#d6305f','center'); txt('tap to run again',W/2,by+20,'#5a2440','center'); }
+    txt('Oops! Try again',W/2,by+6,'#d6305f','center'); txt('tap to start over',W/2,by+20,'#5a2440','center'); }
 }
 
 /* ---------- sizing ---------- */
